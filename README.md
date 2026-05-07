@@ -51,3 +51,15 @@ browser-downloads
 این نسخه به‌جای loop گرفتن `page.screenshot()`، از Chrome DevTools Protocol `Page.startScreencast` استفاده می‌کند. فریم‌ها به‌صورت binary روی WebSocket فرستاده می‌شوند و اگر کلاینت عقب بیفتد، فریم‌های قدیمی drop می‌شوند تا تصویر زنده نماند پشت صف.
 
 اگر روی بعضی محیط‌ها CDP Screencast در دسترس نبود، برنامه خودکار به screenshot fallback برمی‌گردد.
+
+## Stability patch: CDP latest-frame mode
+
+This build keeps the CDP screencast path but improves stability:
+
+- Acks CDP screencast frames immediately.
+- Keeps only the newest pending frame instead of building a frame backlog.
+- Adds a server watchdog that restarts the screencast if frames stop arriving.
+- Adds a client watchdog that requests stream restart and reconnects WebSocket when necessary.
+- Adds a manual “ری‌استارت تصویر” button.
+
+If the stream pauses, wait a few seconds; it should recover without refreshing. If it does not, click **ری‌استارت تصویر**.
