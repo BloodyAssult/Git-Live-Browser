@@ -14,19 +14,21 @@ from .downloads import unique_path, file_info, upload_to_release, list_downloads
 
 
 class ClientState:
-    """Single-writer queue for each websocket.
+    """Single-writer websocket queue with latest-frame wins.
 
-    Frames are lossy by design: if the client/browser/network is behind, old frames
-    are dropped and the newest frame wins. JSON/status messages are preserved as
-    much as possible, but may evict stale frames when the queue is full.
+    The old version allowed several binary frames to queue up. When the VS Code
+    tunnel or the browser UI slowed down, the server kept sending stale frames
+    and the stream looked like it was frozen. This version keeps JSON messages,
+    but collapses video frames so the newest frame always wins.
     """
 
     def __init__(self, ws: WebSocket, on_dead) -> None:
         self.ws = ws
-        self.queue: asyncio.Queue[tuple[str, str | bytes]] = asyncio.Queue(maxsize=6)
+        self.queue: asyncio.Queue[tuple[str, str | bytes]] = asyncio.Queue(maxsize=4)
         self.on_dead = on_dead
         self.task = asyncio.create_task(self._writer())
         self.dropped_frames = 0
+        self.sent_frames = 0
 
     async def _writer(self) -> None:
         try:
@@ -34,6 +36,7 @@ class ClientState:
                 kind, payload = await self.queue.get()
                 if kind == "bytes":
                     await self.ws.send_bytes(payload)  # type: ignore[arg-type]
+                    self.sent_frames += 1
                 else:
                     await self.ws.send_text(payload)  # type: ignore[arg-type]
         except asyncio.CancelledError:
@@ -44,50 +47,54 @@ class ClientState:
     def close(self) -> None:
         self.task.cancel()
 
-    def _drop_one_frame_if_possible(self) -> bool:
+    def _strip_queued_frames(self) -> None:
+        """Remove all pending video frames, preserving text messages."""
         if self.queue.empty():
-            return False
+            return
         items: list[tuple[str, str | bytes]] = []
-        dropped = False
+        removed = 0
         while not self.queue.empty():
             try:
                 item = self.queue.get_nowait()
             except asyncio.QueueEmpty:
                 break
-            if not dropped and item[0] == "bytes":
-                dropped = True
-                self.dropped_frames += 1
+            if item[0] == "bytes":
+                removed += 1
                 continue
             items.append(item)
+        self.dropped_frames += removed
         for item in items:
             try:
                 self.queue.put_nowait(item)
             except asyncio.QueueFull:
                 break
-        return dropped
 
     def enqueue_frame(self, data: bytes) -> None:
+        # Latest frame wins. Do not let old frames form a backlog.
+        self._strip_queued_frames()
         try:
             self.queue.put_nowait(("bytes", data))
         except asyncio.QueueFull:
-            if self._drop_one_frame_if_possible():
-                try:
-                    self.queue.put_nowait(("bytes", data))
-                    return
-                except asyncio.QueueFull:
-                    pass
-            self.dropped_frames += 1
+            # If text/status messages fill the queue, drop one old item rather than
+            # blocking the streaming path. The next stats message will report it.
+            try:
+                self.queue.get_nowait()
+            except Exception:
+                pass
+            try:
+                self.queue.put_nowait(("bytes", data))
+            except asyncio.QueueFull:
+                self.dropped_frames += 1
 
     def enqueue_json(self, payload: Dict[str, Any]) -> None:
         msg = json.dumps(payload, ensure_ascii=False)
         try:
             self.queue.put_nowait(("text", msg))
         except asyncio.QueueFull:
-            self._drop_one_frame_if_possible()
+            self._strip_queued_frames()
             try:
                 self.queue.put_nowait(("text", msg))
             except asyncio.QueueFull:
-                # Last resort: drop the oldest message and insert this status/update.
                 try:
                     self.queue.get_nowait()
                     self.queue.put_nowait(("text", msg))
@@ -117,6 +124,12 @@ class LiveBrowser:
         self.frame_count = 0
         self.last_frame_ts = 0.0
         self._last_stats_ts = 0.0
+        self.watchdog_task: Optional[asyncio.Task] = None
+        self.restart_count = 0
+        self.last_restart_ts = 0.0
+        self._last_forced_frame_ts = 0.0
+        self._processing_cdp_frame = False
+        self._latest_cdp_frame: Optional[Dict[str, Any]] = None
 
     async def start(self) -> None:
         if self.browser:
@@ -142,12 +155,14 @@ class LiveBrowser:
         self.page = await self.context.new_page()
         self.page.on("download", lambda d: asyncio.create_task(self._handle_download(d)))
         await self.page.goto("about:blank")
+        if not self.watchdog_task or self.watchdog_task.done():
+            self.watchdog_task = asyncio.create_task(self._stream_watchdog())
 
         # CDP screencast is Chromium-only, which is fine because we launch Chromium.
         # If this fails for any reason, we fall back to the old screenshot loop.
         try:
             self.cdp = await self.context.new_cdp_session(self.page)
-            self.cdp.on("Page.screencastFrame", lambda p: asyncio.create_task(self._on_screencast_frame(p)))
+            self.cdp.on("Page.screencastFrame", self._on_cdp_screencast_event)
             await self.cdp.send("Page.enable")
             self.stream_mode = "cdp-screencast"
         except Exception as e:
@@ -156,6 +171,9 @@ class LiveBrowser:
             await self.broadcast_json({"type": "status", "level": "warn", "message": f"CDP unavailable; fallback screenshot loop: {e}"})
 
     async def stop(self) -> None:
+        if self.watchdog_task:
+            self.watchdog_task.cancel()
+            self.watchdog_task = None
         await self._stop_stream()
         if self.context:
             await self.context.close()
@@ -184,6 +202,48 @@ class LiveBrowser:
             # Stop pushing frames when nobody is watching. Do it asynchronously so the
             # websocket disconnect path stays simple.
             asyncio.create_task(self._stop_stream())
+
+    async def _stream_watchdog(self) -> None:
+        """Recover from CDP or tunnel stalls without forcing a manual refresh."""
+        while True:
+            try:
+                await asyncio.sleep(1.5)
+                if not self.clients or not self.page:
+                    continue
+                now = time.time()
+                # CDP may stop emitting after tunnel hiccups or after a lost ack.
+                # Restarting the screencast is cheap and usually revives it.
+                if self.screencast_running and self.last_frame_ts and now - self.last_frame_ts > 4.5:
+                    if now - self.last_restart_ts > 4.0:
+                        self.last_restart_ts = now
+                        self.restart_count += 1
+                        await self.broadcast_json({
+                            "type": "status",
+                            "level": "warn",
+                            "message": "Stream stalled; restarting CDP screencast…",
+                        })
+                        await self._restart_stream()
+                # Even on static pages, keep the visible frame fresh occasionally.
+                # This is a lightweight safety net, not the primary stream.
+                if now - self.last_frame_ts > 2.5 and now - self._last_forced_frame_ts > 2.5:
+                    self._last_forced_frame_ts = now
+                    await self._force_one_frame()
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                # Never let the watchdog die permanently.
+                await asyncio.sleep(1)
+
+    async def _force_one_frame(self) -> None:
+        if not self.page or not self.clients:
+            return
+        try:
+            data = await self.page.screenshot(type="jpeg", quality=int(self.quality), full_page=False)
+            self.frame_count += 1
+            self.last_frame_ts = time.time()
+            await self.broadcast_frame(data)
+        except Exception:
+            pass
 
     async def _send_json(self, ws: WebSocket, payload: Dict[str, Any]) -> None:
         state = self.clients.get(ws)
@@ -245,18 +305,48 @@ class LiveBrowser:
 
     async def _restart_stream(self) -> None:
         await self._stop_stream()
+        self.last_frame_ts = 0.0
         if self.clients:
             await self._ensure_stream()
 
-    async def _on_screencast_frame(self, params: Dict[str, Any]) -> None:
+    def _on_cdp_screencast_event(self, params: Dict[str, Any]) -> None:
+        """Synchronous CDP event hook.
+
+        Critical detail: ack immediately and do not create an unbounded processing
+        task per frame. CDP will pause screencast delivery until a frame is acked,
+        and queued processing tasks can make the visible stream appear frozen.
+        """
         session_id = params.get("sessionId")
         cdp = self.cdp
-        # Ack first. CDP will not keep sending smoothly if frames stay unacked.
         if cdp is not None and session_id is not None:
-            try:
-                await cdp.send("Page.screencastFrameAck", {"sessionId": session_id})
-            except Exception:
-                pass
+            asyncio.create_task(self._ack_cdp_frame(session_id))
+
+        # Latest frame wins. If a frame is already being decoded/sent, keep only
+        # the newest incoming frame and drop older work.
+        self._latest_cdp_frame = params
+        if not self._processing_cdp_frame:
+            asyncio.create_task(self._cdp_frame_pump())
+
+    async def _ack_cdp_frame(self, session_id: int) -> None:
+        try:
+            if self.cdp is not None:
+                await self.cdp.send("Page.screencastFrameAck", {"sessionId": session_id})
+        except Exception:
+            pass
+
+    async def _cdp_frame_pump(self) -> None:
+        self._processing_cdp_frame = True
+        try:
+            while self._latest_cdp_frame is not None:
+                params = self._latest_cdp_frame
+                self._latest_cdp_frame = None
+                await self._process_cdp_frame(params)
+                # Yield to input handling and websocket writer tasks.
+                await asyncio.sleep(0)
+        finally:
+            self._processing_cdp_frame = False
+
+    async def _process_cdp_frame(self, params: Dict[str, Any]) -> None:
         if not self.clients:
             return
         try:
@@ -265,16 +355,20 @@ class LiveBrowser:
             self.last_frame_ts = time.time()
             await self.broadcast_frame(data)
             now = time.time()
-            if now - self._last_stats_ts > 3:
+            if now - self._last_stats_ts > 1.5:
                 self._last_stats_ts = now
                 dropped = sum(c.dropped_frames for c in self.clients.values())
+                sent = sum(c.sent_frames for c in self.clients.values())
                 await self.broadcast_json({
                     "type": "stream_stats",
                     "mode": self.stream_mode,
                     "quality": self.quality,
                     "nth": self.every_nth_frame,
                     "frames": self.frame_count,
+                    "sent": sent,
                     "dropped": dropped,
+                    "restarts": self.restart_count,
+                    "age_ms": int((time.time() - self.last_frame_ts) * 1000),
                 })
         except Exception as e:
             await self.broadcast_json({"type": "status", "level": "warn", "message": f"screencast frame error: {e}"})
@@ -346,6 +440,13 @@ class LiveBrowser:
                     await self.page.wait_for_timeout(150)
                     self.last_url = self.page.url
                     await self.broadcast_json({"type": "url", "url": self.last_url})
+                elif action == "restart_stream":
+                    self.restart_count += 1
+                    self.last_restart_ts = time.time()
+                    await self.broadcast_json({"type": "status", "level": "warn", "message": "Manual stream restart…"})
+                    await self._restart_stream()
+                elif action == "ping":
+                    await self.broadcast_json({"type": "pong", "ts": time.time(), "last_frame_age_ms": int((time.time() - self.last_frame_ts) * 1000) if self.last_frame_ts else None})
                 elif action == "set_quality":
                     self.quality = max(40, min(100, int(cmd.get("quality", self.quality))))
                     interval_ms = int(cmd.get("interval_ms", int(self.frame_interval * 1000)))
