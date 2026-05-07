@@ -1,0 +1,21 @@
+{
+  "name": "Git Live Browser",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12-bookworm",
+  "features": {},
+  "postCreateCommand": "bash scripts/start-live.sh --install-only || true",
+  "forwardPorts": [8787],
+  "portsAttributes": {
+    "8787": {
+      "label": "Git Live Browser",
+      "onAutoForward": "notify",
+      "visibility": "private"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python"
+      ]
+    }
+  }
+}
