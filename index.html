@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Git Live Browser</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="aurora"></div>
+  <main class="app">
+    <section class="topbar glass">
+      <div class="brand">
+        <div class="logo">⟠</div>
+        <div>
+          <strong>Git Live Browser</strong>
+          <span id="conn">در حال اتصال…</span>
+        </div>
+      </div>
+      <div class="address">
+        <button id="backBtn" title="Back">‹</button>
+        <button id="fwdBtn" title="Forward">›</button>
+        <button id="reloadBtn" title="Reload">↻</button>
+        <input id="urlInput" placeholder="https://example.com" autocomplete="off" />
+        <button id="goBtn" class="primary">برو</button>
+      </div>
+      <div class="tools">
+        <button id="fullscreenBtn">⛶ بزرگ</button>
+        <button id="qualityBtn">HQ</button>
+        <button id="restartStreamBtn">↯ ری‌استارت تصویر</button>
+      </div>
+    </section>
+
+    <section class="content">
+      <div class="viewer glass" id="viewer">
+        <img id="frame" alt="Live browser frame" />
+        <div id="emptyState" class="empty">
+          <h1>مرورگر زنده آماده است</h1>
+          <p>یک آدرس وارد کن. کلیک و اسکرول روی تصویر مستقیماً به Chromium داخل Codespace فرستاده می‌شود.</p>
+        </div>
+        <button id="exitFull" class="exit hidden">✕ خروج</button>
+      </div>
+
+      <aside class="side glass">
+        <h2>کنترل‌ها</h2>
+        <label>تایپ در صفحه</label>
+        <div class="row">
+          <input id="typeInput" placeholder="متن برای تایپ" />
+          <button id="typeBtn">تایپ</button>
+        </div>
+        <div class="grid">
+          <button data-key="Enter">Enter</button>
+          <button data-key="Escape">Esc</button>
+          <button data-key="Tab">Tab</button>
+          <button data-wheel="-650">اسکرول بالا</button>
+          <button data-wheel="650">اسکرول پایین</button>
+          <button id="uploadDownloadsBtn">آپلود دانلودها</button>
+        </div>
+
+        <h2>کیفیت پخش CDP</h2>
+        <div class="row compact">
+          <label>Quality</label>
+          <input id="qualityRange" type="range" min="55" max="95" value="88" />
+          <span id="qualityVal">88</span>
+        </div>
+        <div class="row compact">
+          <label>Delay</label>
+          <input id="delayRange" type="range" min="60" max="500" value="60" />
+          <span id="delayVal">60ms</span>
+        </div>
+        <button id="applyStreamBtn" class="wide">اعمال کیفیت / سرعت</button>
+
+        <h2>وضعیت</h2>
+        <div id="statusLog" class="log"></div>
+
+        <h2>دانلودها</h2>
+        <div id="downloads" class="downloads emptyList">هنوز دانلودی ثبت نشده.</div>
+      </aside>
+    </section>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>
