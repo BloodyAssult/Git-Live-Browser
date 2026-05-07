@@ -1,6 +1,6 @@
 # Git Live Browser
 
-مرورگر زنده برای Codespaces + VS Code Desktop. این پروژه برخلاف نسخه GitHub.io/Actions، تصویر مرورگر را با WebSocket از داخل Codespace به صفحه محلی شما می‌فرستد.
+مرورگر زنده برای Codespaces + VS Code Desktop. این پروژه برخلاف نسخه GitHub.io/Actions، تصویر مرورگر را با CDP Screencast و WebSocket از داخل Codespace به صفحه محلی شما می‌فرستد.
 
 ## اجرا
 
@@ -21,7 +21,7 @@ http://127.0.0.1:8787
 
 ## قابلیت‌ها
 
-- تصویر زنده از Chromium با WebSocket
+- تصویر زنده از Chromium با CDP Screencast + WebSocket binary
 - کلیک مستقیم روی تصویر
 - اسکرول، برگشت، جلو، رفرش
 - تایپ متن و ارسال Enter
@@ -44,3 +44,10 @@ browser-downloads
 ## نکته امنیتی
 
 از ورود به حساب‌های خیلی حساس مثل بانک، پرداخت، حساب اصلی Google و سرویس‌های مالی داخل مرورگر اتومات‌شده خودداری کنید.
+
+
+## نسخه CDP Screencast
+
+این نسخه به‌جای loop گرفتن `page.screenshot()`، از Chrome DevTools Protocol `Page.startScreencast` استفاده می‌کند. فریم‌ها به‌صورت binary روی WebSocket فرستاده می‌شوند و اگر کلاینت عقب بیفتد، فریم‌های قدیمی drop می‌شوند تا تصویر زنده نماند پشت صف.
+
+اگر روی بعضی محیط‌ها CDP Screencast در دسترس نبود، برنامه خودکار به screenshot fallback برمی‌گردد.
