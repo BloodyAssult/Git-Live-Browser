@@ -1,0 +1,22 @@
+:root{
+  --bg:#06111f;
+  --glass:rgba(8,20,38,.62);
+  --glass2:rgba(255,255,255,.08);
+  --border:rgba(255,255,255,.16);
+  --text:#ecfeff;
+  --muted:#a8c7d8;
+  --accent:#27f5d2;
+  --accent2:#5aa9ff;
+  --danger:#ff5d8f;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:Vazirmatn,Inter,system-ui,-apple-system,Segoe UI,sans-serif;overflow:hidden}
+.aurora{position:fixed;inset:-20%;background:radial-gradient(circle at 20% 15%,rgba(39,245,210,.22),transparent 35%),radial-gradient(circle at 80% 10%,rgba(90,169,255,.22),transparent 38%),radial-gradient(circle at 45% 90%,rgba(132,92,255,.22),transparent 42%);filter:blur(10px);animation:float 12s ease-in-out infinite alternate;z-index:0}
+@keyframes float{to{transform:translate3d(2%,3%,0) scale(1.05)}}
+.app{position:relative;z-index:1;height:100%;padding:14px;display:flex;flex-direction:column;gap:12px}
+.glass{background:linear-gradient(135deg,var(--glass),rgba(12,32,58,.48));border:1px solid var(--border);box-shadow:0 20px 80px rgba(0,0,0,.32);backdrop-filter:blur(18px);border-radius:24px}
+.topbar{display:grid;grid-template-columns:260px 1fr auto;gap:12px;align-items:center;padding:12px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}.brand span{display:block;color:var(--muted);font-size:12px;margin-top:2px}.logo{width:42px;height:42px;border-radius:16px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;color:#00131b;font-weight:900}
+.address{display:flex;gap:8px;direction:ltr}.address input,.row input{width:100%;background:rgba(255,255,255,.08);border:1px solid var(--border);border-radius:14px;color:var(--text);outline:none;padding:12px 14px;direction:ltr}.address input:focus,.row input:focus{border-color:rgba(39,245,210,.65)}
+button{border:1px solid var(--border);background:rgba(255,255,255,.09);color:var(--text);border-radius:14px;padding:10px 13px;cursor:pointer;transition:.15s ease;white-space:nowrap}button:hover{transform:translateY(-1px);background:rgba(255,255,255,.15)}button.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#00131b;border:0;font-weight:800}.tools{display:flex;gap:8px}.content{min-height:0;flex:1;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:12px}.viewer{position:relative;overflow:hidden;display:grid;place-items:center;min-height:0;background:rgba(0,0,0,.36)}#frame{display:block;max-width:100%;max-height:100%;width:100%;height:100%;object-fit:contain;user-select:none;cursor:crosshair}.empty{position:absolute;text-align:center;max-width:540px;color:var(--muted);padding:30px}.empty h1{color:var(--text);margin:0 0 8px}.side{padding:14px;overflow:auto}.side h2{font-size:15px;margin:10px 0 8px}.side label{font-size:12px;color:var(--muted)}.row{display:flex;gap:8px;align-items:center;margin:8px 0}.row.compact input{direction:ltr}.row.compact label{width:50px}.row.compact span{width:54px;color:var(--muted);font-size:12px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.wide{width:100%;margin:4px 0 8px}.log{height:120px;overflow:auto;background:rgba(0,0,0,.2);border:1px solid var(--border);border-radius:14px;padding:10px;font-size:12px;color:var(--muted);direction:ltr}.log div{margin:0 0 6px}.downloads{display:flex;flex-direction:column;gap:8px}.download{border:1px solid var(--border);background:rgba(255,255,255,.06);border-radius:14px;padding:10px;font-size:12px}.download b{display:block;direction:ltr;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.download a{display:inline-block;margin-top:6px;color:var(--accent)}.emptyList{color:var(--muted);font-size:12px}.exit{position:absolute;top:14px;left:14px;background:rgba(0,0,0,.55);z-index:5}.hidden{display:none!important}.viewer.full{position:fixed;inset:0;z-index:50;border-radius:0;background:#02070d}.viewer.full #exitFull{display:block!important}
+@media (max-width:900px){.topbar{grid-template-columns:1fr}.content{grid-template-columns:1fr}.side{max-height:38vh}.brand{display:none}.app{padding:8px}.viewer{min-height:55vh}.address{overflow:auto}}
