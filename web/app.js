@@ -8,6 +8,11 @@ const emptyState = $('emptyState');
 const downloadsEl = $('downloads');
 let ws;
 let lastObjectUrl = null;
+let pendingBlob = null;
+let renderScheduled = false;
+let framesThisSecond = 0;
+let lastFpsTick = performance.now();
+let lastStats = null;
 
 function log(msg, level='info') {
   const div = document.createElement('div');
@@ -15,8 +20,9 @@ function log(msg, level='info') {
   div.textContent = `[${t}] ${msg}`;
   if (level === 'error') div.style.color = '#ff9bb8';
   if (level === 'ok') div.style.color = '#75ffd9';
+  if (level === 'warn') div.style.color = '#ffd479';
   logEl.prepend(div);
-  while (logEl.children.length > 60) logEl.lastChild.remove();
+  while (logEl.children.length > 80) logEl.lastChild.remove();
 }
 
 function wsUrl() {
@@ -24,35 +30,69 @@ function wsUrl() {
   return `${proto}://${location.host}/ws`;
 }
 
+function updateConn(extra='') {
+  const fpsPart = `FPS ${framesThisSecond}`;
+  const mode = lastStats?.mode ? ` · ${lastStats.mode}` : '';
+  connEl.textContent = `زنده · ${fpsPart}${mode}${extra}`;
+}
+
+setInterval(() => {
+  const now = performance.now();
+  if (now - lastFpsTick >= 1000) {
+    updateConn();
+    framesThisSecond = 0;
+    lastFpsTick = now;
+  }
+}, 1000);
+
 function connect() {
   ws = new WebSocket(wsUrl());
   ws.binaryType = 'blob';
   connEl.textContent = 'در حال اتصال WebSocket…';
   ws.onopen = () => { connEl.textContent = 'زنده'; log('WebSocket connected', 'ok'); };
-  ws.onclose = () => { connEl.textContent = 'قطع؛ تلاش مجدد…'; setTimeout(connect, 1200); };
+  ws.onclose = () => { connEl.textContent = 'قطع؛ تلاش مجدد…'; setTimeout(connect, 900); };
   ws.onerror = () => log('WebSocket error', 'error');
   ws.onmessage = async (ev) => {
     if (typeof ev.data === 'string') {
       const data = JSON.parse(ev.data);
       handleMessage(data);
     } else {
-      const url = URL.createObjectURL(ev.data);
-      frame.src = url;
-      emptyState.style.display = 'none';
-      if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
-      lastObjectUrl = url;
+      pendingBlob = ev.data;
+      if (!renderScheduled) {
+        renderScheduled = true;
+        requestAnimationFrame(renderLatestFrame);
+      }
     }
   };
+}
+
+function renderLatestFrame() {
+  renderScheduled = false;
+  if (!pendingBlob) return;
+  const blob = pendingBlob;
+  pendingBlob = null;
+  const url = URL.createObjectURL(blob);
+  const prev = lastObjectUrl;
+  frame.onload = () => { if (prev) URL.revokeObjectURL(prev); };
+  frame.src = url;
+  lastObjectUrl = url;
+  emptyState.style.display = 'none';
+  framesThisSecond++;
 }
 
 function handleMessage(data) {
   if (data.type === 'hello') {
     if (data.url && data.url !== 'about:blank') urlInput.value = data.url;
-    log('Browser ready', 'ok');
+    if (data.mode) lastStats = {mode: data.mode};
+    log(`Browser ready${data.mode ? ' · ' + data.mode : ''}`, 'ok');
   }
   if (data.type === 'status') log(data.message, data.level);
   if (data.type === 'url') urlInput.value = data.url;
   if (data.type === 'downloads') renderDownloads(data.items || []);
+  if (data.type === 'stream_stats') {
+    lastStats = data;
+    updateConn(` · q${data.quality} · nth${data.nth} · drop${data.dropped}`);
+  }
 }
 
 function send(action, payload={}) {
@@ -108,10 +148,10 @@ $('delayRange').oninput = e => { $('delayVal').textContent = `${e.target.value}m
 $('applyStreamBtn').onclick = () => send('set_quality', {quality: Number($('qualityRange').value), interval_ms: Number($('delayRange').value)});
 $('qualityBtn').onclick = () => {
   $('qualityRange').value = 92;
-  $('delayRange').value = 100;
+  $('delayRange').value = 60;
   $('qualityVal').textContent = 92;
-  $('delayVal').textContent = '100ms';
-  send('set_quality', {quality: 92, interval_ms: 100});
+  $('delayVal').textContent = '60ms';
+  send('set_quality', {quality: 92, interval_ms: 60});
 };
 $('uploadDownloadsBtn').onclick = () => send('upload_downloads');
 
