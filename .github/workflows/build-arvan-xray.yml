@@ -40,3 +40,9 @@ jobs:
           tags: |
             ghcr.io/bloodyassult/arvan-xray-portal:0.2
             dsebg/arvan-xray-portal:0.2
+
+      - name: Verify Docker Hub pull
+        run: |
+          docker pull dsebg/arvan-xray-portal:0.2
+          docker image inspect dsebg/arvan-xray-portal:0.2
+          docker run --rm --entrypoint /usr/local/bin/xray dsebg/arvan-xray-portal:0.2 run -test -config /usr/local/etc/xray/config.json
