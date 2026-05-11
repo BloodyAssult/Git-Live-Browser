@@ -22,10 +22,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: ./arvan-xray-portal
           file: ./arvan-xray-portal/Dockerfile
           push: true
-          tags: ghcr.io/bloodyassult/arvan-xray-portal:0.1
+          tags: |
+            ghcr.io/bloodyassult/arvan-xray-portal:0.1
+            ${{ secrets.DOCKERHUB_USERNAME }}/arvan-xray-portal:0.1
