@@ -1,0 +1,59 @@
+name: Build Arvan Rathole
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_TAG: "0.1"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        env:
+          ARVAN_REGISTRY_HOST: ${{ secrets.ARVAN_REGISTRY_HOST }}
+          ARVAN_REGISTRY_USERNAME: ${{ secrets.ARVAN_REGISTRY_USERNAME }}
+          ARVAN_REGISTRY_PASSWORD: ${{ secrets.ARVAN_REGISTRY_PASSWORD }}
+        run: |
+          test -n "$ARVAN_REGISTRY_HOST" || (echo "ARVAN_REGISTRY_HOST is empty" && exit 1)
+          test -n "$ARVAN_REGISTRY_USERNAME" || (echo "ARVAN_REGISTRY_USERNAME is empty" && exit 1)
+          test -n "$ARVAN_REGISTRY_PASSWORD" || (echo "ARVAN_REGISTRY_PASSWORD is empty" && exit 1)
+
+          case "$ARVAN_REGISTRY_HOST" in
+            http://*|https://*|*/*)
+              echo "ARVAN_REGISTRY_HOST must be only host, no scheme/path"
+              exit 1
+              ;;
+          esac
+
+      - name: Login to Arvan Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ARVAN_REGISTRY_HOST }}
+          username: ${{ secrets.ARVAN_REGISTRY_USERNAME }}
+          password: ${{ secrets.ARVAN_REGISTRY_PASSWORD }}
+
+      - name: Build Rathole image
+        run: |
+          docker build \
+            --pull \
+            --platform linux/amd64 \
+            -t ${{ secrets.ARVAN_REGISTRY_HOST }}/arvan-rathole-server:${IMAGE_TAG} \
+            ./arvan-rathole-server
+
+      - name: Push Rathole image
+        run: |
+          docker push ${{ secrets.ARVAN_REGISTRY_HOST }}/arvan-rathole-server:${IMAGE_TAG}
+
+      - name: Verify pull
+        run: |
+          docker image rm ${{ secrets.ARVAN_REGISTRY_HOST }}/arvan-rathole-server:${IMAGE_TAG} || true
+          docker pull ${{ secrets.ARVAN_REGISTRY_HOST }}/arvan-rathole-server:${IMAGE_TAG}

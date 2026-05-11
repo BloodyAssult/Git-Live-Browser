@@ -1,0 +1,17 @@
+cat > server.toml <<'EOF'
+[server]
+bind_addr = "0.0.0.0:8080"
+default_token = "DbMMC1kFdVMC436489fUa2ZU0T6Kxz"
+heartbeat_interval = 30
+
+[server.transport]
+type = "websocket"
+
+[server.transport.websocket]
+tls = false
+
+[server.services.socks]
+type = "tcp"
+bind_addr = "0.0.0.0:1080"
+nodelay = true
+EOF
