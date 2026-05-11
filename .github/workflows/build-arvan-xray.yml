@@ -6,6 +6,10 @@ on:
 permissions:
   contents: read
 
+env:
+  IMAGE_TAG: "0.6"
+  DOCKERHUB_IMAGE: dsebg/arvan-xray-portal
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -14,30 +18,66 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate JSON config
+        run: |
+          python3 -m json.tool arvan-xray-portal/config.json >/dev/null
+          echo "JSON OK"
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Login to Arvan Registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ secrets.ARVAN_REGISTRY }}
+          registry: ${{ secrets.ARVAN_REGISTRY_HOST }}
           username: ${{ secrets.ARVAN_REGISTRY_USERNAME }}
           password: ${{ secrets.ARVAN_REGISTRY_PASSWORD }}
 
-      - name: Build image
+      - name: Build full Xray image
         run: |
           docker build \
             --pull \
             --platform linux/amd64 \
-            -t ${{ secrets.ARVAN_REGISTRY }}/arvan-xray-portal:0.1 \
+            -t ${DOCKERHUB_IMAGE}:${IMAGE_TAG} \
+            -t ${{ secrets.ARVAN_REGISTRY_REPO }}:${IMAGE_TAG} \
             ./arvan-xray-portal
 
-      - name: Push image to Arvan Registry
+      - name: Test image locally
         run: |
-          docker push ${{ secrets.ARVAN_REGISTRY }}/arvan-xray-portal:0.1
-
-      - name: Verify pull from Arvan Registry
-        run: |
-          docker image rm ${{ secrets.ARVAN_REGISTRY }}/arvan-xray-portal:0.1 || true
-          docker pull ${{ secrets.ARVAN_REGISTRY }}/arvan-xray-portal:0.1
           docker run --rm \
             --entrypoint /usr/local/bin/xray \
-            ${{ secrets.ARVAN_REGISTRY }}/arvan-xray-portal:0.1 \
-            run -test -config /usr/local/etc/xray/config.json
+            ${DOCKERHUB_IMAGE}:${IMAGE_TAG} \
+            run -test -config /usr/local/etc/xray/custom.json
+
+      - name: Push to Docker Hub
+        run: |
+          docker push ${DOCKERHUB_IMAGE}:${IMAGE_TAG}
+
+      - name: Push to Arvan Registry
+        run: |
+          docker push ${{ secrets.ARVAN_REGISTRY_REPO }}:${IMAGE_TAG}
+
+      - name: Verify Docker Hub anonymous pull
+        run: |
+          docker logout
+          docker image rm ${DOCKERHUB_IMAGE}:${IMAGE_TAG} || true
+          docker pull ${DOCKERHUB_IMAGE}:${IMAGE_TAG}
+          docker run --rm \
+            --entrypoint /usr/local/bin/xray \
+            ${DOCKERHUB_IMAGE}:${IMAGE_TAG} \
+            run -test -config /usr/local/etc/xray/custom.json
+
+      - name: Verify Arvan Registry pull
+        run: |
+          docker login ${{ secrets.ARVAN_REGISTRY_HOST }} \
+            -u "${{ secrets.ARVAN_REGISTRY_USERNAME }}" \
+            -p "${{ secrets.ARVAN_REGISTRY_PASSWORD }}"
+          docker image rm ${{ secrets.ARVAN_REGISTRY_REPO }}:${IMAGE_TAG} || true
+          docker pull ${{ secrets.ARVAN_REGISTRY_REPO }}:${IMAGE_TAG}
+          docker run --rm \
+            --entrypoint /usr/local/bin/xray \
+            ${{ secrets.ARVAN_REGISTRY_REPO }}:${IMAGE_TAG} \
+            run -test -config /usr/local/etc/xray/custom.json
