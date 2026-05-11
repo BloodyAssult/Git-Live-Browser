@@ -29,7 +29,7 @@
         "security": "none",
         "xhttpSettings": {
           "path": "/assets/api/9730550ca19a49f8200155e1",
-          "mode": "packet-up"
+          "mode": "stream-one"
         }
       }
     }
