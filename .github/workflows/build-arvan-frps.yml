@@ -1,0 +1,43 @@
+name: Build Arvan FRPS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_TAG: "0.1"
+  IMAGE_NAME: arvan-frps
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Arvan Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ARVAN_REGISTRY_HOST }}
+          username: ${{ secrets.ARVAN_REGISTRY_USERNAME }}
+          password: ${{ secrets.ARVAN_REGISTRY_PASSWORD }}
+
+      - name: Build image
+        run: |
+          docker build \
+            --pull \
+            --platform linux/amd64 \
+            -t ${{ secrets.ARVAN_REGISTRY_HOST }}/${IMAGE_NAME}:${IMAGE_TAG} \
+            ./arvan-frps
+
+      - name: Push image
+        run: |
+          docker push ${{ secrets.ARVAN_REGISTRY_HOST }}/${IMAGE_NAME}:${IMAGE_TAG}
+
+      - name: Verify pull
+        run: |
+          docker image rm ${{ secrets.ARVAN_REGISTRY_HOST }}/${IMAGE_NAME}:${IMAGE_TAG} || true
+          docker pull ${{ secrets.ARVAN_REGISTRY_HOST }}/${IMAGE_NAME}:${IMAGE_TAG}
