@@ -34,6 +34,9 @@ jobs:
           context: ./arvan-xray-portal
           file: ./arvan-xray-portal/Dockerfile
           push: true
+          platforms: linux/amd64
+          provenance: false
+          sbom: false
           tags: |
-            ghcr.io/bloodyassult/arvan-xray-portal:0.1
-            ${{ secrets.DOCKERHUB_USERNAME }}/arvan-xray-portal:0.1
+            ghcr.io/bloodyassult/arvan-xray-portal:0.2
+            dsebg/arvan-xray-portal:0.2
