@@ -5,7 +5,6 @@ on:
 
 permissions:
   contents: read
-  packages: read
 
 jobs:
   build:
@@ -15,33 +14,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Login to Docker Hub
+      - name: Login to Arvan Registry
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ${{ secrets.ARVAN_REGISTRY }}
+          username: ${{ secrets.ARVAN_REGISTRY_USERNAME }}
+          password: ${{ secrets.ARVAN_REGISTRY_PASSWORD }}
 
-      - name: Build classic Docker image
+      - name: Build image
         run: |
           docker build \
             --pull \
             --platform linux/amd64 \
-            -t dsebg/arvan-xray-portal:0.4 \
+            -t ${{ secrets.ARVAN_REGISTRY }}/arvan-xray-portal:0.1 \
             ./arvan-xray-portal
 
-      - name: Push to Docker Hub
+      - name: Push image to Arvan Registry
         run: |
-          docker push dsebg/arvan-xray-portal:0.4
+          docker push ${{ secrets.ARVAN_REGISTRY }}/arvan-xray-portal:0.1
 
-      - name: Verify logged-in pull
+      - name: Verify pull from Arvan Registry
         run: |
-          docker image rm dsebg/arvan-xray-portal:0.4 || true
-          docker pull dsebg/arvan-xray-portal:0.4
-          docker run --rm --entrypoint /usr/local/bin/xray dsebg/arvan-xray-portal:0.4 run -test -config /usr/local/etc/xray/config.json
-
-      - name: Verify anonymous public pull
-        run: |
-          docker logout
-          docker image rm dsebg/arvan-xray-portal:0.4 || true
-          docker pull dsebg/arvan-xray-portal:0.4
-          docker run --rm --entrypoint /usr/local/bin/xray dsebg/arvan-xray-portal:0.4 run -test -config /usr/local/etc/xray/config.json
+          docker image rm ${{ secrets.ARVAN_REGISTRY }}/arvan-xray-portal:0.1 || true
+          docker pull ${{ secrets.ARVAN_REGISTRY }}/arvan-xray-portal:0.1
+          docker run --rm \
+            --entrypoint /usr/local/bin/xray \
+            ${{ secrets.ARVAN_REGISTRY }}/arvan-xray-portal:0.1 \
+            run -test -config /usr/local/etc/xray/config.json
