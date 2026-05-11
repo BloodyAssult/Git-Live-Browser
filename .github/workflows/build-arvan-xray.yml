@@ -46,3 +46,8 @@ jobs:
           docker pull dsebg/arvan-xray-portal:0.2
           docker image inspect dsebg/arvan-xray-portal:0.2
           docker run --rm --entrypoint /usr/local/bin/xray dsebg/arvan-xray-portal:0.2 run -test -config /usr/local/etc/xray/config.json
+      - name: Verify anonymous public pull
+        run: |
+          docker logout
+          docker pull dsebg/arvan-xray-portal:0.2
+          docker run --rm --entrypoint /usr/local/bin/xray dsebg/arvan-xray-portal:0.2 run -test -config /usr/local/etc/xray/config.json
