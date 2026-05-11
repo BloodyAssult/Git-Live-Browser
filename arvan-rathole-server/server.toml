@@ -1,4 +1,3 @@
-cat > server.toml <<'EOF'
 [server]
 bind_addr = "0.0.0.0:8080"
 default_token = "DbMMC1kFdVMC436489fUa2ZU0T6Kxz"
@@ -14,4 +13,3 @@ tls = false
 type = "tcp"
 bind_addr = "0.0.0.0:1080"
 nodelay = true
-EOF
