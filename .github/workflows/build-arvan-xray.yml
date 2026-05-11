@@ -28,4 +28,4 @@ jobs:
           context: ./arvan-xray-portal
           file: ./arvan-xray-portal/Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/arvan-xray-portal:0.1
+          tags: ghcr.io/bloodyassult/arvan-xray-portal:0.1
