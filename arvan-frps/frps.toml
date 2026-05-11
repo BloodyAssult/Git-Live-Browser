@@ -1,0 +1,9 @@
+bindPort = 7000
+
+auth.method = "token"
+auth.token = "DbMMC1kFdVMC436489fUa2ZU0T6Kxz"
+
+transport.tcpMux = true
+transport.tcpMuxKeepaliveInterval = 30
+
+log.level = "info"
