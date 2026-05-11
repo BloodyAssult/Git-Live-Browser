@@ -1,0 +1,59 @@
+{
+  "log": {
+    "loglevel": "warning"
+  },
+  "inbounds": [
+    {
+      "tag": "arvan-vless-xhttp-in",
+      "listen": "0.0.0.0",
+      "port": 80,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "9ff5fb56-7234-4a27-86d2-2e325fe32b14",
+            "email": "windows-user"
+          },
+          {
+            "id": "7abbf714-586c-4e8d-9d53-53233f69405f",
+            "email": "codespace-bridge",
+            "reverse": {
+              "tag": "to-codespace"
+            }
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "xhttp",
+        "security": "none",
+        "xhttpSettings": {
+          "path": "/assets/api/9730550ca19a49f8200155e1",
+          "mode": "packet-up"
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "direct",
+      "protocol": "freedom"
+    },
+    {
+      "tag": "block",
+      "protocol": "blackhole"
+    }
+  ],
+  "routing": {
+    "domainStrategy": "IPIfNonMatch",
+    "rules": [
+      {
+        "type": "field",
+        "inboundTag": [
+          "arvan-vless-xhttp-in"
+        ],
+        "outboundTag": "to-codespace"
+      }
+    ]
+  }
+}
